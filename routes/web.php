@@ -7,16 +7,23 @@ use App\Http\Controllers\CheckoutController;
 
 Route::inertia('/', 'welcome')->name('home');
 Route::get('/courses', [CourseController::class, 'index'])->name('courses.index');
-Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('/dashboard', \App\Http\Controllers\DashboardRedirectController::class)->name('dashboard');
+Route::get('/courses/{course:slug}', [CourseController::class, 'show'])->name('courses.show');
+Route::get('/courses/{course:slug}/lessons/{lesson}/video', [CourseController::class, 'streamVideo'])->name('courses.video');
+// OAuth Routes
+Route::get('/auth/{provider}', [\App\Http\Controllers\Auth\SocialLoginController::class, 'redirect'])->name('auth.social.redirect');
+Route::get('/auth/{provider}/callback', [\App\Http\Controllers\Auth\SocialLoginController::class, 'callback'])->name('auth.social.callback');
+Route::delete('/auth/{provider}/unlink', [\App\Http\Controllers\Auth\SocialLoginController::class, 'unlink'])->name('auth.social.unlink')->middleware('auth');
 
+Route::middleware(['auth'])->group(function () {
+    Route::get('/dashboard', \App\Http\Controllers\DashboardRedirectController::class)->name('dashboard');
+    Route::post('/stop-impersonating', [\App\Http\Controllers\Admin\UserController::class, 'stopImpersonating'])->name('impersonation.stop');
+});
+
+Route::middleware(['auth', 'verified'])->group(function () {
     // Checkout routes
     Route::post('/checkout', [CheckoutController::class, 'initiate'])->name('checkout.initiate');
     Route::get('/checkout/success', [CheckoutController::class, 'success'])->name('checkout.success');
     Route::get('/checkout/cancel', [CheckoutController::class, 'cancel'])->name('checkout.cancel');
-    
-    // Impersonation
-    Route::post('/stop-impersonating', [\App\Http\Controllers\Admin\UserController::class, 'stopImpersonating'])->name('impersonation.stop');
 });
 
 require __DIR__.'/settings.php';

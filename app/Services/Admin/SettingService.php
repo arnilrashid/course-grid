@@ -16,10 +16,11 @@ class SettingService
     }
 
     /**
-     * Update a setting value.
+     * Update a setting value by ID.
      */
-    public function update(Setting $setting, $value): void
+    public function update(int $id, $value): void
     {
+        $setting = Setting::findOrFail($id);
         $oldValues = ['value' => $setting->value];
 
         // Ensure value is cast correctly based on type, for safety (e.g. integer)

@@ -2,10 +2,11 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Attributes\Appends;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -32,7 +33,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 #[Fillable(['name', 'email', 'password', 'avatar', 'suspended_at'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
-class User extends Authenticatable implements PasskeyUser
+#[Appends(['has_password'])]
+class User extends Authenticatable implements PasskeyUser, MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasApiTokens, HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable, HasRoles, SoftDeletes;
@@ -55,6 +57,29 @@ class User extends Authenticatable implements PasskeyUser
     public function instructorProfile(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(InstructorProfile::class);
+    }
+
+    public function courses(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Course::class);
+    }
+
+    /**
+     * Determine if the user has verified their email address.
+     * Admins are considered automatically verified to prevent getting blocked from settings.
+     */
+    public function hasVerifiedEmail(): bool
+    {
+        if ($this->hasRole('admin')) {
+            return true;
+        }
+
+        return ! is_null($this->email_verified_at);
+    }
+
+    public function identities(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(UserIdentity::class);
     }
 
     public function conversations(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
@@ -96,5 +121,53 @@ class User extends Authenticatable implements PasskeyUser
     public function isSuspended(): bool
     {
         return $this->suspended_at !== null;
+    }
+
+    /**
+     * Determine if the user has a password.
+     */
+    protected function hasPassword(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: fn () => !is_null($this->password),
+        );
+    }
+
+    public function teamOwner(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'team_owner_id');
+    }
+
+    public function teamMembers(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(User::class, 'team_owner_id');
+    }
+
+    public function subscription(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Subscription::class)->latestOfMany();
+    }
+
+    /**
+     * Check if the user has an active subscription, 
+     * or if their team owner has an active subscription with available seats.
+     */
+    public function hasActiveSubscription(): bool
+    {
+        // Check personal subscription
+        if ($this->subscription && $this->subscription->isActive()) {
+            return true;
+        }
+
+        // Check team owner subscription
+        if ($this->team_owner_id && $this->teamOwner && $this->teamOwner->subscription && $this->teamOwner->subscription->isActive()) {
+            // Check if the team owner has enough seats
+            $usedSeats = $this->teamOwner->teamMembers()->count() + 1; // +1 for the owner
+            if ($this->teamOwner->subscription->seats >= $usedSeats) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

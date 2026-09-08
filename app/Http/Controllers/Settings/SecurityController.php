@@ -38,6 +38,7 @@ class SecurityController extends Controller
                     ->all()
                 : [],
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
+            'socialIdentities' => $request->user()->identities()->pluck('provider')->toArray(),
         ];
 
         if (Features::canManageTwoFactorAuthentication()) {
@@ -55,9 +56,13 @@ class SecurityController extends Controller
      */
     public function update(PasswordUpdateRequest $request): RedirectResponse
     {
-        $request->user()->update([
+        $user = $request->user();
+        
+        $user->update([
             'password' => $request->password,
         ]);
+        
+        \App\Services\Admin\AuditLogger::log('update_password', $user, ['password' => '********'], ['password' => '********']);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Password updated.')]);
 

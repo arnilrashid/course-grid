@@ -30,6 +30,7 @@ interface User {
     id: number;
     name: string;
     email: string;
+    email_verified_at: string | null;
     avatar: string | null;
     suspended_at: string | null;
     created_at: string;
@@ -49,6 +50,7 @@ interface AuditLog {
     created_at: string;
     old_values: any;
     new_values: any;
+    user?: User;
 }
 
 interface Props {
@@ -57,11 +59,13 @@ interface Props {
     sessions: Session[];
     availableRoles: Role[];
     coursesCount: number;
+    has_2fa: boolean;
 }
 
-export default function UserShow({ user, activity, sessions, availableRoles, coursesCount }: Props) {
+export default function UserShow({ user, activity, sessions, availableRoles, coursesCount, has_2fa }: Props) {
     const { url } = usePage();
-    const urlParams = new URLSearchParams(window.location.search);
+    const searchString = typeof window !== 'undefined' ? window.location.search : '';
+    const urlParams = new URLSearchParams(searchString);
     const initialTab = urlParams.get('tab') || 'profile';
     const [activeTab, setActiveTab] = useState(initialTab);
     const [selectedRole, setSelectedRole] = useState<string>(user.roles.length > 0 ? user.roles[0].name : 'none');
@@ -89,8 +93,7 @@ export default function UserShow({ user, activity, sessions, availableRoles, cou
             interval = setInterval(() => {
                 router.reload({ 
                     only: activeTab === 'security' ? ['sessions'] : ['activity'], 
-                    preserveState: true, 
-                    preserveScroll: true 
+                    showProgress: false,
                 });
             }, 3000); // Refresh every 3 seconds for near real-time updates
         }
@@ -176,7 +179,7 @@ export default function UserShow({ user, activity, sessions, availableRoles, cou
                             <div className="flex flex-col items-center text-center">
                                 <div className="h-24 w-24 rounded-full bg-slate-100 flex items-center justify-center border-4 border-white shadow-sm mb-4 overflow-hidden relative group">
                                     {user.avatar ? (
-                                        <img src={`/storage/${user.avatar}`} alt={user.name} className="h-full w-full object-cover" />
+                                        <img src={user.avatar.startsWith('http') ? user.avatar : `/storage/${user.avatar}`} alt={user.name} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                                     ) : (
                                         <UserIcon className="h-12 w-12 text-slate-400" />
                                     )}
@@ -198,7 +201,7 @@ export default function UserShow({ user, activity, sessions, availableRoles, cou
                                 </div>
                                 
                                 <div className="w-full pt-4 border-t border-slate-100 space-y-2">
-                                    {(!user.roles.some(r => r.name === 'admin' || r.name === 'super-admin') && user.id !== (usePage().props.auth as any).user.id) && (
+                                    {(!user.roles.some(r => r.name === 'admin') && user.id !== (usePage().props.auth as any).user.id) && (
                                         <Button 
                                             variant="outline" 
                                             className="w-full"
@@ -208,7 +211,7 @@ export default function UserShow({ user, activity, sessions, availableRoles, cou
                                         </Button>
                                     )}
 
-                                    {!user.roles.some(r => r.name === 'admin' || r.name === 'super-admin') && (
+                                    {!user.roles.some(r => r.name === 'admin') && (
                                         <Button 
                                             variant={user.suspended_at ? "outline" : "secondary"} 
                                             className="w-full"
@@ -218,7 +221,7 @@ export default function UserShow({ user, activity, sessions, availableRoles, cou
                                         </Button>
                                     )}
 
-                                    {!user.roles.some(r => r.name === 'admin' || r.name === 'super-admin') && (
+                                    {!user.roles.some(r => r.name === 'admin') && (
                                         <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                                             <DialogTrigger asChild>
                                                 <Button variant="destructive" className="w-full">
@@ -289,6 +292,39 @@ export default function UserShow({ user, activity, sessions, availableRoles, cou
                                 <span className="text-slate-500 flex items-center gap-2"><MonitorSmartphone className="h-4 w-4"/> Sessions</span>
                                 <span className="font-medium">{sessions.length} Active</span>
                             </div>
+                            <div className="flex flex-col gap-2 pt-4 border-t border-slate-100">
+                                <span className="text-slate-500 flex items-center gap-2 font-medium mb-1"><Shield className="h-4 w-4"/> Security</span>
+                                
+                                {!user.roles.some(r => r.name === 'admin') && (
+                                    <>
+                                        {!user.email_verified_at ? (
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className="text-amber-600 flex items-center gap-1"><AlertTriangle className="h-3 w-3"/> Unverified Email</span>
+                                                <div className="flex gap-1">
+                                                    <Button size="sm" variant="outline" onClick={() => router.post(`/admin/users/${user.id}/resend-verification`)}>Resend Link</Button>
+                                                    <Button size="sm" onClick={() => router.post(`/admin/users/${user.id}/verify-email`)}>Verify Now</Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-slate-600">Email Status</span>
+                                                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">Verified</Badge>
+                                            </div>
+                                        )}
+
+                                        {has_2fa && (
+                                            <div className="flex items-center justify-between gap-2 mt-2">
+                                                <span className="text-slate-600">Two-Factor Auth</span>
+                                                <Button size="sm" variant="destructive" onClick={() => {
+                                                    if (confirm('Are you sure you want to disable 2FA for this user? They will need to set it up again.')) {
+                                                        router.post(`/admin/users/${user.id}/disable-2fa`);
+                                                    }
+                                                }}>Disable 2FA</Button>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
@@ -340,7 +376,7 @@ export default function UserShow({ user, activity, sessions, availableRoles, cou
                                                     {profileData.avatar ? (
                                                         <img src={URL.createObjectURL(profileData.avatar)} alt="Preview" className="h-full w-full object-cover" />
                                                     ) : user.avatar ? (
-                                                        <img src={`/storage/${user.avatar}`} alt={user.name} className="h-full w-full object-cover" />
+                                                        <img src={user.avatar.startsWith('http') ? user.avatar : `/storage/${user.avatar}`} alt={user.name} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                                                     ) : (
                                                         <Camera className="h-6 w-6 text-slate-400" />
                                                     )}
@@ -353,7 +389,7 @@ export default function UserShow({ user, activity, sessions, availableRoles, cou
                                                         onChange={(e) => setProfileData('avatar', e.target.files?.[0] || null)}
                                                         className="text-sm"
                                                     />
-                                                    <p className="text-xs text-slate-500 mt-1">Recommended size 256x256px. Max 2MB.</p>
+                                                    <p className="text-xs text-slate-500 mt-1">Recommended size 2000x2000px. Max 20MB.</p>
                                                     {profileErrors.avatar && <p className="text-sm text-red-500 mt-1">{profileErrors.avatar}</p>}
                                                 </div>
                                             </div>
@@ -508,8 +544,13 @@ export default function UserShow({ user, activity, sessions, availableRoles, cou
                                                     </div>
                                                     <div className="flex-1">
                                                         <div className="flex items-center justify-between mb-1">
-                                                            <p className="font-semibold text-sm capitalize text-slate-800">{log.action.replace('_', ' ')}</p>
-                                                            <span className="text-xs text-slate-500">
+                                                            <div className="flex flex-col">
+                                                                <p className="font-semibold text-sm capitalize text-slate-800">{log.action.replace('_', ' ')}</p>
+                                                                <span className="text-xs text-slate-500">
+                                                                    By: {log.user ? log.user.name : 'Unknown/System'}
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-xs text-slate-500 self-start">
                                                                 {new Date(log.created_at).toLocaleString()}
                                                             </span>
                                                         </div>

@@ -36,7 +36,14 @@ class UserService
      */
     public function getUserActivity(User $user): LengthAwarePaginator
     {
-        return AuditLog::where('user_id', $user->id)
+        return AuditLog::with('user')
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', $user->id)
+                      ->orWhere(function ($q) use ($user) {
+                          $q->where('auditable_type', get_class($user))
+                            ->where('auditable_id', $user->id);
+                      });
+            })
             ->orderBy('created_at', 'desc')
             ->paginate(15);
     }
@@ -60,12 +67,9 @@ class UserService
             });
     }
 
-    /**
-     * Update user profile settings
-     */
     public function updateProfile(User $user, array $data): void
     {
-        $oldValues = $user->only(['name', 'email']);
+        $original = $user->getOriginal();
         
         $user->name = $data['name'];
         $user->email = $data['email'];
@@ -76,7 +80,7 @@ class UserService
 
         if (isset($data['avatar']) && $data['avatar'] instanceof \Illuminate\Http\UploadedFile) {
             // Delete old avatar if exists
-            if ($user->avatar) {
+            if ($user->avatar && !str_starts_with($user->avatar, 'http')) {
                 \Illuminate\Support\Facades\Storage::disk('public')->delete($user->avatar);
             }
             $user->avatar = $data['avatar']->store('avatars', 'public');
@@ -84,13 +88,21 @@ class UserService
         
         $user->save();
         
-        $newValues = $user->only(['name', 'email']);
+        $changes = $user->getChanges();
+        $oldValues = array_intersect_key($original, $changes);
+        $newValues = $changes;
+        
+        unset($oldValues['updated_at']);
+        unset($newValues['updated_at']);
+        
         if (!empty($data['password'])) {
-            $newValues['password'] = '********'; // Mask password in audit log
+            $newValues['password'] = '********';
             $oldValues['password'] = '********';
         }
         
-        AuditLogger::log('update_profile', $user, $oldValues, $newValues);
+        if (!empty($newValues)) {
+            AuditLogger::log('update_profile', $user, $oldValues, $newValues);
+        }
     }
 
     /**
@@ -122,7 +134,7 @@ class UserService
             throw new \Exception("You cannot suspend yourself.");
         }
 
-        if ($user->hasRole(['super-admin', 'admin'])) {
+        if ($user->hasRole('admin')) {
             throw new \Exception("Admin accounts cannot be suspended.");
         }
 
@@ -183,7 +195,7 @@ class UserService
             throw new \Exception("You cannot delete yourself.");
         }
 
-        if ($user->hasRole(['super-admin', 'admin'])) {
+        if ($user->hasRole('admin')) {
             throw new \Exception("Admin accounts cannot be deleted.");
         }
 
@@ -229,5 +241,86 @@ class UserService
 
             AuditLogger::log('delete_user', $user, $oldValues, ['transferred_courses_to' => $newOwnerId]);
         });
+    }
+
+    /**
+     * Manually verify a user's email address.
+     */
+    public function verifyEmail(User $user): void
+    {
+        if ($user->hasVerifiedEmail()) {
+            throw new \Exception("User's email is already verified.");
+        }
+
+        $user->markEmailAsVerified();
+
+        AuditLogger::log('verify_email_manual', $user, ['email_verified_at' => null], ['email_verified_at' => $user->email_verified_at]);
+    }
+
+    /**
+     * Send email verification link to user.
+     */
+    public function resendVerificationEmail(User $user): void
+    {
+        if ($user->hasVerifiedEmail()) {
+            throw new \Exception("User's email is already verified.");
+        }
+
+        $user->sendEmailVerificationNotification();
+        
+        AuditLogger::log('resend_verification_email', $user, [], []);
+    }
+
+    /**
+     * Disable Two-Factor Authentication for a user.
+     */
+    public function disableTwoFactor(User $user): void
+    {
+        if (is_null($user->two_factor_secret)) {
+            throw new \Exception("Two-Factor Authentication is not enabled for this user.");
+        }
+
+        $user->forceFill([
+            'two_factor_secret' => null,
+            'two_factor_recovery_codes' => null,
+            'two_factor_confirmed_at' => null,
+        ])->save();
+
+        AuditLogger::log('disable_two_factor', $user, [], []);
+    }
+
+    /**
+     * Impersonate a user by logging in as them.
+     *
+     * @throws \Exception
+     */
+    public function impersonate(User $user): void
+    {
+        if ($user->id === auth()->id()) {
+            throw new \Exception('You cannot impersonate yourself.');
+        }
+
+        if ($user->hasRole('admin')) {
+            throw new \Exception('You cannot impersonate another admin.');
+        }
+
+        session()->put('impersonated_by', auth()->id());
+        auth()->login($user);
+    }
+
+    /**
+     * Stop impersonating and return to the original admin account.
+     *
+     * @return User|null The original admin user, or null if not impersonating.
+     */
+    public function stopImpersonating(): ?User
+    {
+        if (!session()->has('impersonated_by')) {
+            return null;
+        }
+
+        $adminId = session()->pull('impersonated_by');
+
+        return User::find($adminId);
     }
 }

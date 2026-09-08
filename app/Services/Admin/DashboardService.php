@@ -63,7 +63,7 @@ class DashboardService
         $activities = collect();
         
         $recentOrders = Order::with('user')->orderBy('created_at', 'desc')->take(5)->get()->map(function ($order) {
-            return ['type' => 'order', 'title' => 'New Order', 'description' => $order->user->name . ' purchased a course.', 'date' => $order->created_at];
+            return ['type' => 'order', 'title' => 'New Order', 'description' => ($order->user?->name ?? 'A user') . ' purchased a course.', 'date' => $order->created_at];
         });
         
         $recentSignups = User::role('student')->orderBy('created_at', 'desc')->take(5)->get()->map(function ($user) {
@@ -71,7 +71,7 @@ class DashboardService
         });
         
         $recentReviews = \App\Models\Review::with('user', 'course')->orderBy('created_at', 'desc')->take(5)->get()->map(function ($review) {
-            return ['type' => 'review', 'title' => 'New Review', 'description' => $review->user->name . ' reviewed ' . $review->course->title, 'date' => $review->created_at];
+            return ['type' => 'review', 'title' => 'New Review', 'description' => ($review->user?->name ?? 'A user') . ' reviewed ' . ($review->course?->title ?? 'a deleted course'), 'date' => $review->created_at];
         });
 
         $activities = $activities->merge($recentOrders)->merge($recentSignups)->merge($recentReviews)

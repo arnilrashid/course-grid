@@ -17,7 +17,7 @@ class DashboardRedirectController extends Controller
             return redirect()->route('login');
         }
 
-        if ($user->hasRole('super-admin') || $user->hasRole('admin')) {
+        if ($user->hasRole('admin')) {
             return redirect()->route('admin.dashboard');
         }
 

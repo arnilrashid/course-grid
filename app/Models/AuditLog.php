@@ -2,7 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class AuditLog extends Model
 {
@@ -23,7 +26,7 @@ class AuditLog extends Model
     /**
      * Get the user who performed the action.
      */
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
@@ -31,8 +34,26 @@ class AuditLog extends Model
     /**
      * Get the auditable model.
      */
-    public function auditable()
+    public function auditable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    /**
+     * Scope a query to search by action or user name/email.
+     */
+    public function scopeSearchable(Builder $query, ?string $search): Builder
+    {
+        return $query->with('user')
+            ->latest()
+            ->when($search, function (Builder $q, string $search) {
+                $q->where(function (Builder $sub) use ($search) {
+                    $sub->where('action', 'like', "%{$search}%")
+                        ->orWhereHas('user', function (Builder $uq) use ($search) {
+                            $uq->where('name', 'like', "%{$search}%")
+                               ->orWhere('email', 'like', "%{$search}%");
+                        });
+                });
+            });
     }
 }

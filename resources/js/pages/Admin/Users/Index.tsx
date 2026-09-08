@@ -137,7 +137,7 @@ export default function UsersIndex({ users, roles, filters }: Props) {
                                         <div className="flex items-center gap-3">
                                             <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border overflow-hidden">
                                                 {user.avatar ? (
-                                                    <img src={`/storage/${user.avatar}`} alt={user.name} className="h-full w-full object-cover" />
+                                                    <img src={user.avatar.startsWith('http') ? user.avatar : `/storage/${user.avatar}`} alt={user.name} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                                                 ) : (
                                                     <UserIcon className="h-5 w-5 text-slate-400" />
                                                 )}

@@ -78,4 +78,12 @@ class Course extends Model
     {
         return $this->belongsToMany(Tag::class)->withTimestamps();
     }
+
+    /**
+     * Determine if a given user is enrolled in this course.
+     */
+    public function hasStudent(User $user): bool
+    {
+        return $this->enrollments()->where('user_id', $user->id)->exists();
+    }
 }

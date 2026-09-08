@@ -17,12 +17,15 @@ Route::middleware(['auth', \Spatie\Permission\Middleware\RoleMiddleware::class .
     Route::delete('/users/{user}/sessions/{sessionId}', [\App\Http\Controllers\Admin\UserController::class, 'revokeSession'])->name('users.revokeSession');
     Route::delete('/users/{user}', [\App\Http\Controllers\Admin\UserController::class, 'destroy'])->name('users.destroy');
     Route::post('/users/{user}/impersonate', [\App\Http\Controllers\Admin\UserController::class, 'impersonate'])->name('users.impersonate');
+    Route::post('/users/{user}/verify-email', [\App\Http\Controllers\Admin\UserController::class, 'verifyEmail'])->name('users.verifyEmail');
+    Route::post('/users/{user}/resend-verification', [\App\Http\Controllers\Admin\UserController::class, 'resendVerificationEmail'])->name('users.resendVerification');
+    Route::post('/users/{user}/disable-2fa', [\App\Http\Controllers\Admin\UserController::class, 'disableTwoFactor'])->name('users.disableTwoFactor');
 
     // Roles
-    Route::resource('roles', \App\Http\Controllers\Admin\RoleController::class)->only(['index', 'edit', 'update']);
+    Route::resource('roles', \App\Http\Controllers\Admin\RoleController::class);
 
     // Courses
-    Route::get('/courses', [\App\Http\Controllers\Admin\CourseController::class, 'index'])->name('courses.index');
+    Route::resource('courses', \App\Http\Controllers\Admin\CourseController::class);
     Route::post('/courses/{course}/approve', [\App\Http\Controllers\Admin\CourseController::class, 'approve'])->name('courses.approve');
     Route::post('/courses/{course}/reject', [\App\Http\Controllers\Admin\CourseController::class, 'reject'])->name('courses.reject');
 
@@ -37,4 +40,7 @@ Route::middleware(['auth', \Spatie\Permission\Middleware\RoleMiddleware::class .
     // Settings
     Route::get('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'index'])->name('settings.index');
     Route::post('/settings', [\App\Http\Controllers\Admin\SettingController::class, 'update'])->name('settings.update');
+
+    // Audit Logs
+    Route::get('/audit-logs', [\App\Http\Controllers\Admin\AuditLogController::class, 'index'])->name('audit-logs.index');
 });

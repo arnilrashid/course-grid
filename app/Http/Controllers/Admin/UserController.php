@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\UpdateUserRequest;
+use App\Http\Requests\Admin\UpdateUserRoleRequest;
 use App\Models\User;
 use App\Services\Admin\UserService;
 use App\Services\Admin\RoleService;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class UserController extends Controller
@@ -15,7 +16,7 @@ class UserController extends Controller
     {
     }
 
-    public function index(Request $request)
+    public function index(\Illuminate\Http\Request $request)
     {
         return Inertia::render('Admin/Users/Index', [
             'users' => $this->userService->getUsers($request->input('search'), $request->input('role')),
@@ -31,36 +32,26 @@ class UserController extends Controller
             'activity' => $this->userService->getUserActivity($user),
             'sessions' => $this->userService->getUserSessions($user),
             'availableRoles' => $this->roleService->getAllRoles(),
-            'coursesCount' => \Illuminate\Support\Facades\DB::table('courses')->where('user_id', $user->id)->count(),
+            'coursesCount' => $user->courses()->count(),
+            'has_2fa' => !is_null($user->two_factor_secret),
         ]);
     }
 
-    public function update(Request $request, User $user)
+    public function update(UpdateUserRequest $request, User $user)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,'.$user->id,
-            'password' => 'nullable|string|min:8',
-            'avatar' => 'nullable|image|max:2048',
-        ]);
-
-        $this->userService->updateProfile($user, $validated);
+        $this->userService->updateProfile($user, $request->validated());
 
         return back()->with('success', 'User profile updated successfully.');
     }
 
-    public function updateRole(Request $request, User $user)
+    public function updateRole(UpdateUserRoleRequest $request, User $user)
     {
-        $validated = $request->validate([
-            'role' => 'nullable|string|exists:roles,name',
-        ]);
-
-        $this->userService->updateRole($user, $validated['role']);
+        $this->userService->updateRole($user, $request->validated()['role']);
 
         return back()->with('success', 'User role updated successfully.');
     }
 
-    public function suspend(Request $request, User $user)
+    public function suspend(\Illuminate\Http\Request $request, User $user)
     {
         try {
             $this->userService->suspend($user, $request->input('reason'));
@@ -70,7 +61,7 @@ class UserController extends Controller
         }
     }
 
-    public function unsuspend(Request $request, User $user)
+    public function unsuspend(\Illuminate\Http\Request $request, User $user)
     {
         $this->userService->unsuspend($user, $request->input('reason'));
         
@@ -91,7 +82,7 @@ class UserController extends Controller
         return back()->with('success', 'Session revoked successfully.');
     }
 
-    public function destroy(Request $request, User $user)
+    public function destroy(\Illuminate\Http\Request $request, User $user)
     {
         try {
             $transferToUserId = $request->input('transfer_to_user_id');
@@ -111,30 +102,17 @@ class UserController extends Controller
 
     public function impersonate(User $user)
     {
-        if ($user->id === auth()->id()) {
-            return back()->with('error', 'You cannot impersonate yourself.');
+        try {
+            $this->userService->impersonate($user);
+            return redirect()->route('dashboard')->with('success', "You are now impersonating {$user->name}.");
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
         }
-
-        if ($user->hasRole('super-admin') && !auth()->user()->hasRole('super-admin')) {
-            return back()->with('error', 'You cannot impersonate a super admin.');
-        }
-
-        // Store original admin ID in session
-        session()->put('impersonated_by', auth()->id());
-        
-        auth()->login($user);
-
-        return redirect()->route('dashboard')->with('success', "You are now impersonating {$user->name}.");
     }
 
     public function stopImpersonating()
     {
-        if (!session()->has('impersonated_by')) {
-            return back();
-        }
-
-        $adminId = session()->pull('impersonated_by');
-        $admin = User::find($adminId);
+        $admin = $this->userService->stopImpersonating();
 
         if ($admin) {
             auth()->login($admin);
@@ -142,5 +120,35 @@ class UserController extends Controller
         }
 
         return redirect()->route('login');
+    }
+
+    public function verifyEmail(User $user)
+    {
+        try {
+            $this->userService->verifyEmail($user);
+            return back()->with('success', 'User email verified successfully.');
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function resendVerificationEmail(User $user)
+    {
+        try {
+            $this->userService->resendVerificationEmail($user);
+            return back()->with('success', 'Verification email sent successfully.');
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function disableTwoFactor(User $user)
+    {
+        try {
+            $this->userService->disableTwoFactor($user);
+            return back()->with('success', 'Two-Factor Authentication disabled successfully.');
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 }

@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CartItem;
+use App\Http\Requests\InitiateCheckoutRequest;
 use App\Models\Course;
 use App\Models\Order;
-use App\Models\OrderItem;
+use App\Services\CheckoutService;
 use App\Services\StripeCheckoutService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,28 +16,26 @@ use Inertia\Response;
 
 class CheckoutController extends Controller
 {
+    public function __construct(
+        private CheckoutService $checkoutService,
+        private StripeCheckoutService $stripeCheckoutService,
+    ) {
+    }
+
     /**
      * Initiate checkout: create an order from the cart and redirect to Stripe.
      */
-    public function initiate(Request $request)
+    public function initiate(InitiateCheckoutRequest $request)
     {
-        $request->validate([
-            'course_ids' => 'required|array|min:1',
-            'course_ids.*' => 'exists:courses,id',
-        ]);
-
         $user = Auth::user();
         $courseIds = $request->input('course_ids');
         $courses = Course::whereIn('id', $courseIds)->get();
 
         $idempotencyKey = $request->input('idempotency_key', Str::uuid()->toString());
 
-        $checkoutService = new \App\Services\CheckoutService();
-        $order = $checkoutService->createOrderFromCourses($user, $courses, $idempotencyKey);
+        $order = $this->checkoutService->createOrderFromCourses($user, $courses, $idempotencyKey);
 
-        // Create Stripe checkout session
-        $stripeCheckoutService = new StripeCheckoutService();
-        $result = $stripeCheckoutService->createCheckoutSession($order);
+        $result = $this->stripeCheckoutService->createCheckoutSession($order);
 
         return redirect()->away($result['session_url']);
     }

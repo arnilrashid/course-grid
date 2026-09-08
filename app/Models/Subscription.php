@@ -10,6 +10,7 @@ class Subscription extends Model
     protected $fillable = [
         'user_id',
         'plan',
+        'seats',
         'status',
         'starts_at',
         'ends_at',
@@ -24,5 +25,11 @@ class Subscription extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === 'active' && 
+               ($this->ends_at === null || $this->ends_at->isFuture());
     }
 }

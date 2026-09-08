@@ -1,7 +1,7 @@
 import AdminLayout from '@/pages/Admin/Layout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import React from 'react';
-import { Shield, Users, Lock, ChevronRight } from 'lucide-react';
+import { Shield, Users, Lock, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface Role {
@@ -16,6 +16,12 @@ interface Props {
 }
 
 export default function RolesIndex({ roles }: Props) {
+    const handleDelete = (role: Role) => {
+        if (window.confirm(`Are you sure you want to delete the ${role.name} role?\n\nThis cannot be undone.`)) {
+            router.delete(`/admin/roles/${role.id}`);
+        }
+    };
+
     return (
         <AdminLayout title="System Roles">
             <Head title="Roles - Admin" />
@@ -25,6 +31,12 @@ export default function RolesIndex({ roles }: Props) {
                     <h2 className="text-lg font-medium text-slate-900">Roles & Permissions</h2>
                     <p className="text-sm text-slate-500">Manage access control and define what users can do.</p>
                 </div>
+                <Button asChild>
+                    <Link href="/admin/roles/create">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Role
+                    </Link>
+                </Button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -63,13 +75,18 @@ export default function RolesIndex({ roles }: Props) {
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-slate-50 p-4 border-t border-slate-100 mt-auto">
-                            <Button variant="outline" className="w-full justify-between" asChild>
+                        <div className="bg-slate-50 p-4 border-t border-slate-100 mt-auto flex gap-2">
+                            <Button variant="outline" className="flex-1 justify-between" asChild>
                                 <Link href={`/admin/roles/${role.id}/edit`}>
                                     Edit Permissions
                                     <ChevronRight className="h-4 w-4 ml-2" />
                                 </Link>
                             </Button>
+                            {role.name !== 'admin' && (
+                                <Button variant="destructive" size="icon" onClick={() => handleDelete(role)} title="Delete Role">
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            )}
                         </div>
                     </div>
                 ))}

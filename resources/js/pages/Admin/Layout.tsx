@@ -1,9 +1,9 @@
 import { Link, usePage } from '@inertiajs/react';
 import React, { ReactNode } from 'react';
-import { 
-    LayoutDashboard, 
-    BookOpen, Layers, Grid, HelpCircle, Award, 
-    Users, GraduationCap, Building, 
+import {
+    LayoutDashboard,
+    BookOpen, Layers, Grid, HelpCircle, Award,
+    Users, GraduationCap, Building,
     ShoppingCart, CreditCard, Undo, Tag, Repeat,
     DollarSign, Wallet, ArrowUpRight,
     Star, MessageSquare, Megaphone, Bell,
@@ -38,7 +38,8 @@ type NavGroup = {
 };
 
 export default function AdminLayout({ children, title }: Props) {
-    const { url } = usePage();
+    const { url, props } = usePage<any>();
+    const user = props.auth.user;
 
     const navigation: NavGroup[] = [
         {
@@ -60,9 +61,8 @@ export default function AdminLayout({ children, title }: Props) {
         {
             label: 'PEOPLE',
             items: [
-                { name: 'Students', href: '/admin/students', icon: Users },
-                { name: 'Instructors', href: '/admin/instructors', icon: GraduationCap },
-                { name: 'Organizations', href: '/admin/organizations', icon: Building },
+                { name: 'Students', href: '/admin/users?role=student', icon: Users },
+                { name: 'Instructors', href: '/admin/users?role=instructor', icon: GraduationCap },
             ]
         },
         {
@@ -136,7 +136,7 @@ export default function AdminLayout({ children, title }: Props) {
                     <h1 className="text-xl font-bold text-white tracking-tight">CourseGrid Admin</h1>
                     <Link href="/" className="text-xs text-slate-400 hover:text-white uppercase tracking-wider font-semibold">Exit</Link>
                 </div>
-                
+
                 <div className="px-3 pb-8 space-y-6">
                     {navigation.map((group, i) => (
                         <div key={i}>
@@ -149,16 +149,15 @@ export default function AdminLayout({ children, title }: Props) {
                                 {group.items.map((item) => {
                                     const isActive = url === item.href || (item.href !== '/admin' && url.startsWith(item.href));
                                     const Icon = item.icon;
-                                    
+
                                     return (
                                         <Link
                                             key={item.name}
                                             href={item.href}
-                                            className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                                                isActive
+                                            className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors ${isActive
                                                     ? 'bg-indigo-600 text-white'
                                                     : 'hover:bg-slate-800 hover:text-white'
-                                            }`}
+                                                }`}
                                         >
                                             {Icon && <Icon className={`h-4 w-4 ${isActive ? 'text-indigo-200' : 'text-slate-400'}`} />}
                                             {item.name}
@@ -180,10 +179,10 @@ export default function AdminLayout({ children, title }: Props) {
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <button className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-semibold text-sm hover:bg-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 overflow-hidden border">
-                                        {usePage().props.auth.user.avatar ? (
-                                            <img src={`/storage/${usePage().props.auth.user.avatar}`} alt="Avatar" className="h-full w-full object-cover" />
+                                        {user.avatar ? (
+                                            <img src={user.avatar.startsWith('http') ? user.avatar : `/storage/${user.avatar}`} alt="Avatar" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                                         ) : (
-                                            (usePage().props.auth.user.name as string).charAt(0).toUpperCase()
+                                            user.name.charAt(0).toUpperCase()
                                         )}
                                     </button>
                                 </DropdownMenuTrigger>
@@ -191,7 +190,7 @@ export default function AdminLayout({ children, title }: Props) {
                                     <DropdownMenuLabel>My Account</DropdownMenuLabel>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem asChild>
-                                        <Link href={`/admin/users/${usePage().props.auth.user.id}`}>Profile Settings</Link>
+                                        <Link href={`/admin/users/${user.id}`}>Profile Settings</Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem asChild>
                                         <Link href="/logout" method="post" as="button" className="w-full text-left text-red-600 cursor-pointer">

@@ -34,7 +34,7 @@ export default function Profile({
                 <Heading
                     variant="small"
                     title="Profile"
-                    description="Update your name and email address"
+                    description="Update your profile picture, name, and email address"
                 />
 
                 <Form
@@ -46,6 +46,29 @@ export default function Profile({
                 >
                     {({ processing, errors }) => (
                         <>
+                            <div className="grid gap-2">
+                                <Label htmlFor="avatar">Profile Picture</Label>
+                                <div className="flex items-center gap-4">
+                                    <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center shrink-0 border overflow-hidden relative">
+                                        {auth.user.avatar ? (
+                                            <img src={auth.user.avatar.startsWith('http') ? auth.user.avatar : `/storage/${auth.user.avatar}`} alt="Avatar" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                                        ) : (
+                                            <div className="text-xl font-medium text-slate-400">
+                                                {auth.user.name.charAt(0).toUpperCase()}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <Input
+                                        id="avatar"
+                                        type="file"
+                                        name="avatar"
+                                        accept="image/*"
+                                        className="w-full"
+                                    />
+                                </div>
+                                <InputError className="mt-2" message={errors.avatar} />
+                            </div>
+
                             <div className="grid gap-2">
                                 <Label htmlFor="name">Name</Label>
 
